@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SISCO — Detección de Estrés Académico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-logo">
+        <div class="logo-dot"></div>
+        <span class="logo-text">SISCO <span class="logo-sub">/ Bienestar Académico</span></span>
+      </div>
+      <div class="header-badge">Fundación Universitaria de Popayán</div>
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL -->
+  <main class="main">
+
+    <!-- Panel lateral -->
+    <aside class="sidebar">
+      <div class="sidebar-card">
+        <h2 class="sidebar-title">¿Cómo funciona?</h2>
+        <div class="step">
+          <div class="step-num">1</div>
+          <p>Cuéntame cómo te has sentido este semestre con tus estudios</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <p>Te haré preguntas sobre las 5 dimensiones del inventario SISCO</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <p>El modelo de IA analiza tus respuestas y detecta tu nivel de estrés</p>
+        </div>
+      </div>
+
+      <!-- Barra de progreso -->
+      <div class="sidebar-card progress-card" id="progressCard" style="display:none;">
+        <p class="progress-label">Progreso de la evaluación</p>
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="progressBar" style="width: 0%;"></div>
+        </div>
+        <p class="progress-text" id="progressText">Paso 0 de 5</p>
+      </div>
+
+      <!-- Resultado nivel SISCO -->
+      <div class="sidebar-card nivel-card" id="nivelCard" style="display:none;">
+        <p class="nivel-label">Nivel detectado</p>
+        <div class="nivel-badge" id="nivelBadge">—</div>
+        <p class="nivel-desc" id="nivelDesc"></p>
+      </div>
+
+      <div class="sidebar-disclaimer">
+        <p>Esta herramienta es orientativa y no reemplaza la atención psicológica profesional. Si sientes que necesitas apoyo, acude a la oficina de bienestar universitario.</p>
+      </div>
+    </aside>
+
+    <!-- Panel del chat -->
+    <section class="chat-panel">
+      <div class="chat-messages" id="chatMessages">
+
+        <!-- Mensaje inicial del bot -->
+        <div class="msg msg-bot">
+          <div class="msg-avatar">🎓</div>
+          <div class="msg-bubble">
+            <p>Hola, soy el asistente de bienestar académico de la FUP.</p>
+            <p>Mi objetivo es ayudarte a identificar tu nivel de estrés académico según el <strong>inventario SISCO</strong>.</p>
+            <p>Para empezar a orientarte, <strong>cuéntame brevemente cómo describirías tu experiencia este semestre.</strong> ¿Te has sentido tranquilo/a, agobiado/a, o hay algo que te tenga intranquilo/a?</p>
+            <p class="msg-hint">Escribe mínimo 5 palabras para un análisis más preciso.</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Área de escritura -->
+      <div class="chat-input-area">
+        <div class="word-counter" id="wordCounter">0 palabras</div>
+        <div class="input-row">
+          <textarea
+            id="userInput"
+            class="chat-input"
+            placeholder="Escribe aquí cómo te has sentido este semestre..."
+            rows="3"
+          ></textarea>
+          <button class="send-btn" id="sendBtn" onclick="enviarMensaje()" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Botón nuevo análisis -->
+      <div class="nuevo-analisis-container" id="nuevoContainer" style="display:none;">
+        <button class="btn-nuevo" id="btnNuevo" onclick="reiniciarChat()">
+          Nuevo análisis
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="{{ url_for('static', filename='chat.js') }}"></script>
+</body>
+</html>

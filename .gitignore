@@ -1,0 +1,24 @@
+# Entornos virtuales
+venv_sisco/
+venv/
+env/
+.env
+
+# Archivos de caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Configuración del IDE
+.vscode/
+.idea/
+.gemini/
+
+# Modelos pesados (Evitar límite de 100MB de GitHub)
+*.pt
+modelo_hibrido_final/pesos.pt
+mejor_modelo_hibrido.pt

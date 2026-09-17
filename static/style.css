@@ -1,0 +1,464 @@
+/* ══════════════════════════════════════════════════════════════
+   SISCO — Estilos del Chatbot de Estrés Académico
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Variables ─────────────────────────────────────────── */
+:root {
+  --azul-oscuro:   #6aacf2;
+  --azul-medio:    #2563a8;
+  --azul-claro:    #e8f0fb;
+  --verde:         #2d8a6e;
+  --verde-claro:   #e6f5f0;
+  --amarillo:      #b45309;
+  --amarillo-claro:#fef3c7;
+  --rojo:          #b91c1c;
+  --rojo-claro:    #fee2e2;
+  --gris-fondo:    #f1f4f8;
+  --gris-borde:    #dde3ec;
+  --texto:         #1e293b;
+  --texto-suave:   #64748b;
+  --blanco:        #ffffff;
+  --radio:         14px;
+  --sombra:        0 2px 12px rgba(26,58,92,.10);
+}
+
+/* ── Reset ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--gris-fondo);
+  color: var(--texto);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ────────────────────────────────────────────── */
+.header {
+  background: var(--azul-oscuro);
+  padding: 0 2rem;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-inner {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-dot {
+  width: 10px;
+  height: 10px;
+  background: #4ade80;
+  border-radius: 50%;
+}
+.logo-text {
+  color: var(--blanco);
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: .01em;
+}
+.logo-sub {
+  font-weight: 300;
+  opacity: .7;
+  font-size: .9rem;
+}
+.header-badge {
+  color: rgba(255,255,255,.5);
+  font-size: .78rem;
+  font-weight: 400;
+}
+
+/* ── Layout principal ──────────────────────────────────── */
+.main {
+  flex: 1;
+  display: flex;
+  gap: 1.5rem;
+  max-width: 1100px;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+  width: 100%;
+  align-items: flex-start;
+}
+
+/* ── Sidebar ───────────────────────────────────────────── */
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.sidebar-card {
+  background: var(--blanco);
+  border: 1px solid var(--gris-borde);
+  border-radius: var(--radio);
+  padding: 1.25rem;
+  box-shadow: var(--sombra);
+}
+.sidebar-title {
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--azul-oscuro);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 1rem;
+}
+.step {
+  display: flex;
+  gap: .75rem;
+  align-items: flex-start;
+  margin-bottom: .85rem;
+}
+.step:last-child { margin-bottom: 0; }
+.step-num {
+  width: 24px;
+  height: 24px;
+  background: var(--azul-claro);
+  color: var(--azul-medio);
+  border-radius: 50%;
+  font-size: .75rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.step p {
+  font-size: .84rem;
+  color: var(--texto-suave);
+  line-height: 1.5;
+}
+
+/* ── Barra de progreso ─────────────────────────────────── */
+.progress-card { text-align: center; }
+.progress-label {
+  font-size: .75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--texto-suave);
+  margin-bottom: .6rem;
+}
+.progress-bar-container {
+  width: 100%;
+  height: 10px;
+  background: var(--gris-borde);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: .5rem;
+}
+.progress-bar {
+  height: 100%;
+  background: var(--azul-medio);
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+.progress-text {
+  font-size: .8rem;
+  color: var(--texto-suave);
+  font-weight: 500;
+}
+
+/* ── Nivel SISCO card ──────────────────────────────────── */
+.nivel-card { text-align: center; }
+.nivel-label {
+  font-size: .75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--texto-suave);
+  margin-bottom: .5rem;
+}
+.nivel-badge {
+  font-size: 1.4rem;
+  font-weight: 700;
+  padding: .5rem 1.2rem;
+  border-radius: 30px;
+  display: inline-block;
+  margin-bottom: .6rem;
+}
+.nivel-badge.bajo     { background: var(--verde-claro);   color: var(--verde); }
+.nivel-badge.moderado { background: var(--amarillo-claro); color: var(--amarillo); }
+.nivel-badge.alto     { background: var(--rojo-claro);    color: var(--rojo); }
+.nivel-desc {
+  font-size: .82rem;
+  color: var(--texto-suave);
+  line-height: 1.5;
+}
+
+.sidebar-disclaimer {
+  padding: .9rem 1rem;
+  border: 1px solid var(--gris-borde);
+  border-radius: var(--radio);
+  background: var(--blanco);
+}
+.sidebar-disclaimer p {
+  font-size: .78rem;
+  color: var(--texto-suave);
+  line-height: 1.55;
+}
+
+/* ── Chat panel ────────────────────────────────────────── */
+.chat-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--blanco);
+  border: 1px solid var(--gris-borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  overflow: hidden;
+  min-height: calc(100vh - 120px);
+}
+
+/* Mensajes */
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  scroll-behavior: smooth;
+}
+
+/* Burbuja genérica */
+.msg {
+  display: flex;
+  gap: .75rem;
+  align-items: flex-start;
+  max-width: 85%;
+}
+.msg-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--azul-claro);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.msg-bubble {
+  background: var(--gris-fondo);
+  border: 1px solid var(--gris-borde);
+  border-radius: 4px 14px 14px 14px;
+  padding: .9rem 1.1rem;
+  font-size: .9rem;
+  line-height: 1.6;
+}
+.msg-bubble p { margin-bottom: .4rem; }
+.msg-bubble p:last-child { margin-bottom: 0; }
+.msg-hint {
+  font-size: .8rem;
+  color: var(--texto-suave);
+  margin-top: .4rem;
+}
+
+/* Mensaje del bot */
+.msg-bot .msg-bubble {
+  background: var(--gris-fondo);
+}
+
+/* Mensaje del usuario */
+.msg-user {
+  flex-direction: row-reverse;
+  align-self: flex-end;
+}
+.msg-user .msg-avatar {
+  background: var(--azul-oscuro);
+  color: var(--blanco);
+}
+.msg-user .msg-bubble {
+  background: var(--azul-oscuro);
+  color: var(--blanco);
+  border-color: var(--azul-oscuro);
+  border-radius: 14px 4px 14px 14px;
+}
+
+/* Burbuja de resultado SISCO */
+.msg-resultado .msg-bubble {
+  border-left: 4px solid var(--verde);
+  background: var(--verde-claro);
+}
+.msg-resultado.nivel-moderado .msg-bubble {
+  border-left-color: var(--amarillo);
+  background: var(--amarillo-claro);
+}
+.msg-resultado.nivel-alto .msg-bubble {
+  border-left-color: var(--rojo);
+  background: var(--rojo-claro);
+}
+
+/* ── Barras de probabilidad en resultado ───────────────── */
+.prob-section {
+  margin-top: .8rem;
+  padding-top: .6rem;
+  border-top: 1px solid rgba(0,0,0,.08);
+}
+.prob-title {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--texto-suave);
+  margin-bottom: .5rem;
+}
+.prob-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .35rem;
+}
+.prob-label {
+  font-size: .78rem;
+  font-weight: 500;
+  width: 70px;
+  color: var(--texto);
+}
+.prob-bar-container {
+  flex: 1;
+  height: 8px;
+  background: rgba(0,0,0,.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.prob-bar {
+  height: 100%;
+  border-radius: 8px;
+  transition: width 0.6s ease;
+}
+.prob-value {
+  font-size: .75rem;
+  font-weight: 600;
+  width: 42px;
+  text-align: right;
+  color: var(--texto);
+}
+
+/* ── Typing indicator ──────────────────────────────────── */
+.typing .msg-bubble {
+  padding: .7rem 1rem;
+}
+.typing-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 18px;
+}
+.typing-dots span {
+  width: 7px;
+  height: 7px;
+  background: var(--texto-suave);
+  border-radius: 50%;
+  animation: bounce 1.2s infinite;
+}
+.typing-dots span:nth-child(2) { animation-delay: .2s; }
+.typing-dots span:nth-child(3) { animation-delay: .4s; }
+@keyframes bounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40%           { transform: translateY(-6px); }
+}
+
+/* ── Input area ────────────────────────────────────────── */
+.chat-input-area {
+  border-top: 1px solid var(--gris-borde);
+  padding: 1rem 1.25rem;
+  background: var(--blanco);
+}
+.word-counter {
+  font-size: .75rem;
+  color: var(--texto-suave);
+  margin-bottom: .4rem;
+  text-align: right;
+  transition: color .2s;
+}
+.word-counter.ok { color: var(--verde); font-weight: 600; }
+.input-row {
+  display: flex;
+  gap: .75rem;
+  align-items: flex-end;
+}
+.chat-input {
+  flex: 1;
+  border: 1.5px solid var(--gris-borde);
+  border-radius: 10px;
+  padding: .75rem 1rem;
+  font-family: 'Inter', sans-serif;
+  font-size: .9rem;
+  color: var(--texto);
+  resize: none;
+  outline: none;
+  transition: border-color .2s;
+  line-height: 1.5;
+}
+.chat-input:focus { border-color: var(--azul-medio); }
+.chat-input:disabled {
+  background: var(--gris-fondo);
+  color: var(--texto-suave);
+}
+.send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--azul-oscuro);
+  border: none;
+  color: var(--blanco);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .2s, transform .1s;
+}
+.send-btn:hover:not(:disabled) { background: var(--azul-medio); }
+.send-btn:active:not(:disabled) { transform: scale(.95); }
+.send-btn:disabled {
+  background: var(--gris-borde);
+  color: var(--texto-suave);
+  cursor: not-allowed;
+}
+
+/* ── Botón nuevo análisis ──────────────────────────────── */
+.nuevo-analisis-container {
+  display: flex;
+  justify-content: center;
+  padding: .75rem 1.25rem;
+  border-top: 1px solid var(--gris-borde);
+  background: var(--gris-fondo);
+}
+.btn-nuevo {
+  background: var(--azul-medio);
+  color: var(--blanco);
+  border: none;
+  border-radius: 10px;
+  padding: .6rem 1.5rem;
+  font-family: 'Inter', sans-serif;
+  font-size: .88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s, transform .1s;
+}
+.btn-nuevo:hover { background: var(--azul-oscuro); }
+.btn-nuevo:active { transform: scale(.97); }
+
+/* ── Responsive ────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .main { flex-direction: column; padding: 0 1rem; margin: 1rem auto; }
+  .sidebar { width: 100%; }
+  .chat-panel { min-height: 60vh; }
+  .header-badge { display: none; }
+}
