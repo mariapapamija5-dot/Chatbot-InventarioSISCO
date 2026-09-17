@@ -13,9 +13,8 @@ import torch.nn as nn
 from flask import Flask, render_template, request, jsonify, session
 from transformers import AutoTokenizer, AutoModel
 
-# ══════════════════════════════════════════════════════════════
+
 # Configuración
-# ══════════════════════════════════════════════════════════════
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, "modelo_hibrido_final")
 MODEL_NAME = "dccuchile/bert-base-spanish-wwm-cased"
@@ -23,9 +22,9 @@ MODEL_NAME = "dccuchile/bert-base-spanish-wwm-cased"
 app = Flask(__name__)
 app.secret_key = "sisco_fup_2026_secretkey"
 
-# ══════════════════════════════════════════════════════════════
+
 # Cargar configuración del modelo
-# ══════════════════════════════════════════════════════════════
+
 with open(os.path.join(MODEL_DIR, "config.json"), "r", encoding="utf-8") as f:
     model_config = json.load(f)
 
@@ -36,23 +35,23 @@ NUM_CLASES = model_config["num_clases"]     # 3
 
 print(f"[SISCO] Config cargada: {NUM_LIKERT} cols Likert, {NUM_CLASES} clases")
 
-# ══════════════════════════════════════════════════════════════
+
 # Cargar StandardScaler
-# ══════════════════════════════════════════════════════════════
+
 with open(os.path.join(MODEL_DIR, "scaler.pkl"), "rb") as f:
     scaler = pickle.load(f)
 print("[SISCO] Scaler cargado")
 
-# ══════════════════════════════════════════════════════════════
+
 # Cargar tokenizador BETO
-# ══════════════════════════════════════════════════════════════
+
 tokenizer_path = os.path.join(MODEL_DIR, "tokenizador")
 tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
 print("[SISCO] Tokenizador BETO cargado")
 
-# ══════════════════════════════════════════════════════════════
+
 # Definir arquitectura del modelo (idéntica al entrenamiento)
-# ══════════════════════════════════════════════════════════════
+
 class ModeloHibrido(nn.Module):
     def __init__(self, num_likert, num_clases=3):
         super().__init__()
@@ -83,9 +82,9 @@ class ModeloHibrido(nn.Module):
         combinado = torch.cat([cls_token, likert_out], dim=1)
         return self.classifier(combinado)
 
-# ══════════════════════════════════════════════════════════════
+
 # Cargar pesos del modelo entrenado
-# ══════════════════════════════════════════════════════════════
+
 device = torch.device("cpu")  # Inferencia en CPU para el servidor
 model = ModeloHibrido(num_likert=NUM_LIKERT, num_clases=NUM_CLASES).to(device)
 model.load_state_dict(
@@ -94,9 +93,9 @@ model.load_state_dict(
 model.eval()
 print("[SISCO] Modelo hibrido cargado (CPU)")
 
-# ══════════════════════════════════════════════════════════════
+
 # Importar estimador de Likert y diccionario de datos
-# ══════════════════════════════════════════════════════════════
+
 from estimador_likert import estimar_likert_completo
 from diccionario_datos import normalizar_para_beto
 
@@ -154,9 +153,9 @@ RECOMENDACIONES = {
     ),
 }
 
-# ══════════════════════════════════════════════════════════════
+
 # Scoring basado en reglas (complementa al modelo neural)
-# ══════════════════════════════════════════════════════════════
+
 def _scoring_reglas_likert(likert_values):
     """
     Genera probabilidades de cada nivel basándose directamente
@@ -236,9 +235,9 @@ def _scoring_reglas_likert(likert_values):
     }
 
 
-# ══════════════════════════════════════════════════════════════
+
 # Función de predicción con ensemble (modelo + reglas)
-# ══════════════════════════════════════════════════════════════
+
 # Hiperparámetros de calibración
 TEMPERATURA = 0.7      # < 1 agudiza las probabilidades del softmax
 PESO_MODELO = 0.70     # Peso del modelo neural en el ensemble
@@ -271,7 +270,7 @@ def predecir_con_modelo(texto_completo, likert_values):
     likert_sc = scaler.transform([likert_values])
     likert_t = torch.tensor(likert_sc, dtype=torch.float32).to(device)
 
-    # ── Predicción del modelo neural ──────────────────────────
+    # Predicción del modelo neural
     with torch.no_grad():
         logits = model(
             input_ids=enc["input_ids"].to(device),
@@ -399,6 +398,6 @@ if __name__ == "__main__":
     print("  Modelo Hibrido BETO + Likert")
     print(f"  Accuracy entrenamiento: {model_config.get('accuracy_test', 'N/A')}")
     print("=" * 55)
-    print("  Abriendo en http://localhost:5000")
+    print("  Abriendo en http://localhost:7860")
     print("=" * 55 + "\n")
-    app.run(debug=False, port=5000)
+    app.run(host="0.0.0.0", debug=False, port=7860)
