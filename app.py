@@ -83,12 +83,24 @@ class ModeloHibrido(nn.Module):
         return self.classifier(combinado)
 
 
+# ID de Google Drive (¡DEBES REEMPLAZAR ESTO CON EL ID DE TU ARCHIVO pesos.pt!)
+# Ejemplo: si el enlace es https://drive.google.com/file/d/1A2B3C/view, el ID es 1A2B3C
+GOOGLE_DRIVE_PESOS_ID = "1ot-_JNAaSGg_FS0eoqrLLLsM8FD8iBEM"
+
 # Cargar pesos del modelo entrenado
 
 device = torch.device("cpu")  # Inferencia en CPU para el servidor
 model = ModeloHibrido(num_likert=NUM_LIKERT, num_clases=NUM_CLASES).to(device)
+
+pesos_path = os.path.join(MODEL_DIR, "pesos.pt")
+if not os.path.exists(pesos_path):
+    print("[SISCO] No se encontraron los pesos locales. Descargando desde Google Drive (esto puede tardar unos minutos)...")
+    import gdown
+    url = f'https://drive.google.com/uc?id={GOOGLE_DRIVE_PESOS_ID}'
+    gdown.download(url, pesos_path, quiet=False)
+
 model.load_state_dict(
-    torch.load(os.path.join(MODEL_DIR, "pesos.pt"), map_location=device)
+    torch.load(pesos_path, map_location=device)
 )
 model.eval()
 print("[SISCO] Modelo hibrido cargado (CPU)")

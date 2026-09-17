@@ -2,21 +2,11 @@
 """
 Modelo Híbrido BETO + Likert — Detección de Estrés Académico SISCO
 
-ANTES DE CORRER:
-1. Entorno de ejecución → Cambiar tipo → T4 GPU → Guardar
-2. Sube dataset_final_balanceado.csv al panel 
-3. Corre cada celda con Shift + Enter
 """
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 1 — Instalación
-# ══════════════════════════════════════════════════════════════
-# !pip install transformers torch scikit-learn seaborn matplotlib accelerate -q
-# print(' Instalado')
-
 
 # ══════════════════════════════════════════════════════════════
-# CELDA 2 — Importaciones
+#  Importaciones
 # ══════════════════════════════════════════════════════════════
 import pandas as pd
 import numpy as np
@@ -38,17 +28,11 @@ from torch.utils.data import DataLoader, TensorDataset
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"  Dispositivo: {str(device).upper()}")
 if str(device) == 'cpu':
-    print("  Sin GPU — ve a Entorno de ejecución → Cambiar tipo → T4 GPU")
+    print("  Sin GPU ")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 3 — Cargar dataset
-# ══════════════════════════════════════════════════════════════
+# Cargar dataset
 
-# ─────────────────────────────────────────────────────────────
-# IMPORTANTE: verifica que subiste dataset_final_balanceado.csv
-# Si el archivo tiene otro nombre, cámbialo aquí:
-# ─────────────────────────────────────────────────────────────
 df = pd.read_csv("dataset_recalibrado.csv")
 df = df.loc[:, ~df.columns.duplicated()]
 df = df.dropna(subset=["texto", "nivel_sisco"]).reset_index(drop=True)
@@ -65,9 +49,9 @@ for fuente, n in df["fuente"].value_counts().items():
     print(f"  {fuente:<25} {n}")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 4 — Separar reales y sintéticos ANTES del split
-# ══════════════════════════════════════════════════════════════
+
+# Separar reales y sintéticos ANTES del split
+
 # CORRECCIÓN CLAVE: test SOLO con datos reales
 # Los sintéticos solo van en entrenamiento
 
@@ -115,9 +99,8 @@ for nivel, n in y_test.value_counts().items():
     print(f"  {nivel:<10} {n}")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 5 — Codificar etiquetas
-# ══════════════════════════════════════════════════════════════
+# Codificar etiquetas
+
 le = LabelEncoder()
 le.fit(df["nivel_sisco"])  # fit sobre todo para consistencia
 
@@ -129,18 +112,15 @@ nombres_clases = [label_inv[i] for i in sorted(label_inv)]
 print(f"Mapa etiquetas: {label_inv}")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 6 — Normalizar Likert
-# ══════════════════════════════════════════════════════════════
+# Normalizar Likert
+
 scaler = StandardScaler()
 X_likert_train_sc = scaler.fit_transform(X_likert_train)
 X_likert_test_sc  = scaler.transform(X_likert_test)
 print(f" Likert normalizado — shape train: {X_likert_train_sc.shape}")
 
+# Tokenizar con BETO
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 7 — Tokenizar con BETO
-# ══════════════════════════════════════════════════════════════
 MODEL_NAME = "dccuchile/bert-base-spanish-wwm-cased"
 print(" Descargando BETO...")
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
@@ -160,9 +140,9 @@ test_enc = tokenizer(
 print(f" Train: {train_enc['input_ids'].shape} | Test: {test_enc['input_ids'].shape}")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 8 — Convertir a tensores
-# ══════════════════════════════════════════════════════════════
+
+# Convertir a tensores
+
 X_likert_train_t = torch.tensor(X_likert_train_sc, dtype=torch.float32)
 X_likert_test_t  = torch.tensor(X_likert_test_sc,  dtype=torch.float32)
 y_train_t        = torch.tensor(y_train_enc, dtype=torch.long)
@@ -170,9 +150,8 @@ y_test_t         = torch.tensor(y_test_enc,  dtype=torch.long)
 print(" Tensores listos")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 9 — Modelo Híbrido (arquitectura mejorada)
-# ══════════════════════════════════════════════════════════════
+# Modelo Híbrido (arquitectura mejorada)
+
 class ModeloHibrido(nn.Module):
     def __init__(self, num_likert, num_clases=3):
         super().__init__()
@@ -218,9 +197,8 @@ total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 print(f" Modelo híbrido listo — Parámetros: {total_params:,}")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 10 — Class Weights y DataLoader
-# ══════════════════════════════════════════════════════════════
+# Class Weights y DataLoader
+
 class_weights = compute_class_weight(
     class_weight="balanced",
     classes=np.unique(y_train_enc),
@@ -251,10 +229,10 @@ test_loader  = DataLoader(test_dataset,  batch_size=8)
 print(f"\n DataLoader — Train batches: {len(train_loader)} | Test batches: {len(test_loader)}")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 11 — Optimizador con learning rates diferenciados
+
+# Optimizador con learning rates diferenciados
 # CORRECCIÓN: BETO necesita lr más pequeño que las capas nuevas
-# ══════════════════════════════════════════════════════════════
+
 optimizer = torch.optim.AdamW([
     {"params": model.bert.parameters(),       "lr": 2e-5},  # BETO lr pequeño
     {"params": model.fc_likert.parameters(),  "lr": 1e-3},  # Likert lr mayor
@@ -279,9 +257,9 @@ print(f"   Pasos:   {total_steps}")
 print(f"   Warmup:  {warmup_steps}")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 12 — Entrenamiento (~10-15 min con GPU)
-# ══════════════════════════════════════════════════════════════
+
+# Entrenamiento (~10-15 min con GPU)
+
 losses         = []
 val_accuracies = []
 mejor_acc      = 0
@@ -290,7 +268,7 @@ mejor_epoch    = 0
 print(f" Entrenando {EPOCHS} épocas...\n")
 
 for epoch in range(EPOCHS):
-    # ── TRAIN ──────────────────────────────────────────────────
+    # TRAIN
     model.train()
     total_loss = 0
 
@@ -314,7 +292,7 @@ for epoch in range(EPOCHS):
     avg_loss = total_loss / len(train_loader)
     losses.append(avg_loss)
 
-    # ── VALIDACIÓN ─────────────────────────────────────────────
+    # VALIDACIÓN
     model.eval()
     val_preds = []
     val_real  = []
@@ -344,9 +322,8 @@ for epoch in range(EPOCHS):
 print(f"\n Mejor accuracy: {mejor_acc:.2%} en época {mejor_epoch}")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 13 — Cargar mejor modelo y evaluación final
-# ══════════════════════════════════════════════════════════════
+# Cargar mejor modelo y evaluación final
+
 model.load_state_dict(torch.load("mejor_modelo_hibrido.pt"))
 model.eval()
 
@@ -371,9 +348,9 @@ print(f"{'='*55}")
 print(classification_report(reales, predicciones, target_names=nombres_clases))
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 14 — Gráfica: Pérdida y Accuracy por época
-# ══════════════════════════════════════════════════════════════
+
+# Gráfica: Pérdida y Accuracy por época
+
 fig, axes = plt.subplots(1, 2, figsize=(13, 4))
 
 axes[0].plot(range(1, EPOCHS+1), losses, 'b-o', markersize=5)
@@ -396,9 +373,9 @@ plt.show()
 print(" Guardada: grafica_entrenamiento.png")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 15 — Gráfica: Matriz de confusión
-# ══════════════════════════════════════════════════════════════
+
+# Gráfica: Matriz de confusión
+
 cm = confusion_matrix(reales, predicciones)
 
 plt.figure(figsize=(7, 5))
@@ -416,9 +393,9 @@ plt.show()
 print(" Guardada: grafica_matriz_confusion.png")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 16 — Gráfica: Precision, Recall, F1 por clase
-# ══════════════════════════════════════════════════════════════
+
+# Gráfica: Precision, Recall, F1 por clase
+
 report = classification_report(reales, predicciones,
                                 target_names=nombres_clases,
                                 output_dict=True)
@@ -457,9 +434,9 @@ plt.show()
 print(" Guardada: grafica_metricas_por_clase.png")
 
 
-# ══════════════════════════════════════════════════════════════
-# CELDA 17 — Guardar modelo
-# ══════════════════════════════════════════════════════════════
+
+# Guardar modelo
+
 import os, json
 
 os.makedirs("./modelo_hibrido_final", exist_ok=True)
@@ -481,9 +458,8 @@ print(" Modelo guardado en ./modelo_hibrido_final/")
 print("   Descárgalo desde el panel  de Colab")
 
 
-# ══════════════════════════════════════════════════════════════
+
 # CELDA 18 — Predicción en tiempo real (chatbot)
-# ══════════════════════════════════════════════════════════════
 import re
 
 JERGA = {
