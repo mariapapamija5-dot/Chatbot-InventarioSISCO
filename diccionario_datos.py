@@ -332,6 +332,25 @@ CORRECCIONES_ORTOGRAFICAS = {
     "alimentacion": "alimentación",
     "comunicacion": "comunicación",
 
+    # ── Correcciones ortográficas frecuentes ───────────────────
+    "habia":     "había",
+    "estaba":    "estaba",
+    "asta":      "hasta",
+    "haci":      "así",
+    "asi":       "así",
+    "nose":      "no sé",
+    "nervisa":   "nerviosa",
+    "nerviso":   "nervioso",
+    "ansios":    "ansiosa",
+    "ancioso":   "ansioso",
+    "anciosa":   "ansiosa",
+    "tristesa":  "tristeza",
+    "stres":     "estrés",
+    "extres":    "estrés",
+    "estres":    "estrés",
+    "depre":     "depresión",
+    "dificil":   "difícil",
+
     # Errores ortográficos comunes
     "aser":       "hacer",
     "acer":       "hacer",

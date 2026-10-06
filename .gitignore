@@ -22,3 +22,9 @@ Thumbs.db
 *.pt
 modelo_hibrido_final/pesos.pt
 mejor_modelo_hibrido.pt
+
+# Gráficas y Documentos (ignorar subidas al repo)
+*.png
+*.jpg
+*.jpeg
+*.pdf
