@@ -99,10 +99,13 @@
         </div>
       </div>
 
-      <!-- Botón nuevo análisis -->
+      <!-- Botón nuevo análisis y cerrar sesión -->
       <div class="nuevo-analisis-container" id="nuevoContainer" style="display:none;">
         <button class="btn-nuevo" id="btnNuevo" onclick="reiniciarChat()">
           Nuevo análisis
+        </button>
+        <button class="btn-terminar" id="btnTerminar" onclick="window.location.href='/login'" style="margin-top: 10px; background-color: #ef4444; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; width: 100%; max-width: 300px; display: block; margin-left: auto; margin-right: auto;">
+          Terminar Sesión
         </button>
       </div>
     </section>

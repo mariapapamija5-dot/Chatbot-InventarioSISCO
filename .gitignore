@@ -28,3 +28,15 @@ mejor_modelo_hibrido.pt
 *.jpg
 *.jpeg
 *.pdf
+*.md
+!README.md
+
+# Base de datos local (efímera, no subir)
+*.db
+*.sqlite
+*.sqlite3
+
+# Notebooks de scratch y documentos de tesis (opcionales)
+documento_maestro_correcciones_tesis.md
+DOCUMENTO_OFICIAL_CORRECCIONES_TESIS_FUP.md
+DOCUMENTO_DESPLIEGUE_Y_APRENDIZAJE_ACTIVO.md

@@ -10,14 +10,23 @@ PALABRAS_POSITIVAS = [
 ]
 
 PALABRAS_NEGATIVAS = [
-    "mal", "estresado", "estresada", "ansioso", "ansiosa", "triste", "cansado", 
-    "cansada", "agotado", "agotada", "abrumado", "abrumada", "presionado", 
-    "presionada", "angustiado", "angustiada", "preocupado", "preocupada", 
-    "nervioso", "nerviosa", "pésimo", "pesimo", "horrible", "terrible", 
-    "deprimido", "deprimida", "malísimo", "malisimo", "llorar", "dolor", 
+    "mal", "estresado", "estresada", "ansioso", "ansiosa", "triste", "cansado",
+    "cansada", "agotado", "agotada", "abrumado", "abrumada", "presionado",
+    "presionada", "angustiado", "angustiada", "preocupado", "preocupada",
+    "nervioso", "nerviosa", "pésimo", "pesimo", "horrible", "terrible",
+    "deprimido", "deprimida", "malísimo", "malisimo", "llorar", "dolor",
     "enfermo", "enferma", "frustrado", "frustrada", "desesperado", "desesperada",
     "pesado", "duro", "difícil", "dificil", "complejo", "complicado",
-    "nada bien", "muy mal", "fatal", "grave"
+    "nada bien", "muy mal", "fatal", "grave",
+    # Variantes con typos frecuentes en español colombiano
+    "intranquilo", "intranquila", "intraquilo", "intraquila",
+    "agobiado", "agobiada", "saturado", "saturada", "desbordado", "desbordada",
+    "inquieto", "inquieta", "incomodo", "incomoda", "incómodo", "incómoda",
+    "asustado", "asustada", "perdido", "perdida", "desorientado", "desorientada",
+    "sin energía", "sin ganas", "sin fuerzas", "muy cansado", "muy cansada",
+    "muchas cosas", "demasiado", "no puedo", "no aguanto", "sin dormir",
+    "problemas para dormir", "no duermo", "muchas presiones", "mucha presión",
+    "mucha presion"
 ]
 
 NEGADORES = ["no", "ni", "nunca", "jamas", "jamás", "tampoco", "cero", "nada"]

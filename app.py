@@ -8,7 +8,7 @@ import re
 import json
 import pickle
 import uuid
-import sqlite3
+import contextlib
 from datetime import datetime
 import numpy as np
 import torch
@@ -16,56 +16,123 @@ import torch.nn as nn
 from flask import Flask, render_template, request, jsonify, session
 from transformers import AutoTokenizer, AutoModel
 
-
-# Configuración
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(BASE_DIR, "modelo_hibrido_final")
-MODEL_NAME = "dccuchile/bert-base-spanish-wwm-cased"
-DB_PATH = os.path.join(BASE_DIR, "sisco_chatbot_v2.db")
-
 # ══════════════════════════════════════════════════════════════
-# Configuración Base de Datos SQLite
+# Detección de entorno: producción (PostgreSQL) o local (SQLite)
 # ══════════════════════════════════════════════════════════════
+DATABASE_URL = os.environ.get("DATABASE_URL")  # Supabase/PostgreSQL en producción
+
+if DATABASE_URL:
+    import psycopg2
+    import psycopg2.extras
+    USE_POSTGRES = True
+    PH = "%s"   # Placeholder de PostgreSQL
+    print("[SISCO] Modo PRODUCCIÓN: conectado a PostgreSQL")
+else:
+    import sqlite3
+    USE_POSTGRES = False
+    PH = "?"    # Placeholder de SQLite
+    BASE_DIR_DB = os.path.dirname(os.path.abspath(__file__))
+    DB_PATH = os.path.join(BASE_DIR_DB, "sisco_chatbot_v2.db")
+    print("[SISCO] Modo LOCAL: usando SQLite")
+
+
+@contextlib.contextmanager
+def get_db_connection():
+    """Context manager que devuelve una conexión según el entorno activo."""
+    if USE_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre_usuario TEXT UNIQUE,
-            pin TEXT,
-            edad INTEGER
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sesiones (
-            id TEXT PRIMARY KEY,
-            usuario_id INTEGER,
-            fecha_inicio TIMESTAMP,
-            nivel_final TEXT,
-            confianza REAL,
-            completado BOOLEAN,
-            FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS respuestas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sesion_id TEXT,
-            paso INTEGER,
-            texto TEXT,
-            sentimiento TEXT,
-            FOREIGN KEY(sesion_id) REFERENCES sesiones(id)
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    """Crea las tablas si no existen. Compatible con SQLite y PostgreSQL."""
+    if USE_POSTGRES:
+        sql_usuarios = """
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                nombre_usuario TEXT UNIQUE NOT NULL,
+                pin TEXT NOT NULL,
+                edad INTEGER
+            )"""
+        sql_sesiones = """
+            CREATE TABLE IF NOT EXISTS sesiones (
+                id TEXT PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id),
+                fecha_inicio TIMESTAMP DEFAULT NOW(),
+                nivel_final TEXT,
+                confianza REAL,
+                completado BOOLEAN DEFAULT FALSE
+            )"""
+        sql_respuestas = """
+            CREATE TABLE IF NOT EXISTS respuestas (
+                id SERIAL PRIMARY KEY,
+                sesion_id TEXT REFERENCES sesiones(id),
+                paso INTEGER,
+                texto TEXT,
+                sentimiento TEXT
+            )"""
+    else:
+        sql_usuarios = """
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre_usuario TEXT UNIQUE,
+                pin TEXT,
+                edad INTEGER
+            )"""
+        sql_sesiones = """
+            CREATE TABLE IF NOT EXISTS sesiones (
+                id TEXT PRIMARY KEY,
+                usuario_id INTEGER,
+                fecha_inicio TIMESTAMP,
+                nivel_final TEXT,
+                confianza REAL,
+                completado BOOLEAN,
+                FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+            )"""
+        sql_respuestas = """
+            CREATE TABLE IF NOT EXISTS respuestas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sesion_id TEXT,
+                paso INTEGER,
+                texto TEXT,
+                sentimiento TEXT,
+                FOREIGN KEY(sesion_id) REFERENCES sesiones(id)
+            )"""
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(sql_usuarios)
+        cursor.execute(sql_sesiones)
+        cursor.execute(sql_respuestas)
 
 # Inicializar DB al arrancar
 init_db()
 
+# Configuración del proyecto
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_DIR = os.path.join(BASE_DIR, "modelo_hibrido_final")
+MODEL_NAME = "dccuchile/bert-base-spanish-wwm-cased"
+
 app = Flask(__name__)
-app.secret_key = "sisco_fup_2026_secretkey"
+app.secret_key = os.environ.get("SECRET_KEY", "sisco_fup_2026_secretkey")
 
 
 # Cargar configuración del modelo
@@ -163,33 +230,33 @@ from analizador_sentimiento import analizar_sentimiento_general
 PREGUNTAS = {
     1: {
         "dimension": "Estresores academicos",
-        "positivo": "Me alegra saber que te has sentido tranquilo/a. Aún así, la universidad siempre presenta retos. ¿Qué tareas o dinámicas suelen exigirte más esfuerzo o causarte algo de presión? (Por ejemplo: trabajos grupales, parciales, exponer, etc.).",
-        "negativo": "Entiendo, lamento que te sientas así. Ahora me gustaría que nos enfoquemos en el origen de esto. ¿Qué tareas o dinámicas de la universidad te están generando esa presión? (Por ejemplo: no entender algunos temas, demasiados trabajos grupales, miedo a perder una materia, etc.).",
-        "neutral": "Entiendo. Ahora me gustaría que nos enfoquemos en tu contexto académico. ¿Qué tareas o dinámicas de la universidad te están generando mayor presión o exigencia?"
+        "positivo": "Me alegra saber que te has sentido tranquilo/a. Aún así, la universidad siempre tiene sus retos. ¿Qué tareas o dinámicas suelen exigirte más esfuerzo o causarte algo de presión? (Por ejemplo: trabajos grupales, parciales, exponer, etc.).",
+        "negativo": "Lamento que estés pasando por eso — es más común de lo que crees entre los estudiantes. Para poder entenderte mejor, cuéntame: ¿qué es específicamente lo que más te está generando esa presión en la universidad? (Por ejemplo: acumulación de trabajos, miedo a perder una materia, exposiciones, etc.).",
+        "neutral": "Gracias por contarme. ¿Hay alguna tarea o dinámica de la universidad que actualmente te esté generando mayor presión o exigencia?"
     },
     2: {
         "dimension": "Sintomas fisicos",
-        "positivo": "Entendido. Cambiando un poco de tema, me gustaría saber sobre tu salud física. A veces el cuerpo reacciona sin darnos cuenta. ¿Has tenido problemas para dormir, te sientes cansado/a, con dolores de cabeza o problemas de estómago últimamente?",
-        "negativo": "Comprendo. Es muy común que esa presión afecte el cuerpo. ¿Has notado algún cambio físico últimamente? ¿Has tenido problemas para dormir, te sientes cansado/a con frecuencia, dolores de cabeza o problemas de estómago?",
-        "neutral": "Entiendo. Ahora me gustaría saber si has notado algún cambio físico últimamente. ¿Has tenido problemas para dormir, te sientes cansado/a con frecuencia, dolores de cabeza, problemas de estómago o somnolencia?"
+        "positivo": "Qué bueno. Ahora, cambiando un poco el tema, me gustaría preguntarte sobre tu cuerpo — a veces el estrés se manifiesta físicamente sin que nos demos cuenta. ¿Has tenido problemas para dormir, dolores de cabeza, cansancio frecuente o malestares estomacales últimamente?",
+        "negativo": "Es totalmente comprensible que todo eso te afecte. Ahora cuéntame, ¿has notado algún cambio en tu cuerpo? Por ejemplo: dificultad para dormir, cansancio inusual, dolores de cabeza o malestar en el estómago.",
+        "neutral": "Gracias. Ahora me gustaría saber cómo ha respondido tu cuerpo a toda esta carga. ¿Has tenido problemas para dormir, cansancio frecuente, dolores de cabeza, malestar estomacal o sensación de somnolencia?"
     },
     3: {
         "dimension": "Sintomas psicologicos",
-        "positivo": "Gracias por la información. ¿Y emocionalmente cómo te has sentido en general? ¿Has experimentado algo de ansiedad, nervios, dificultad para concentrarte o irritabilidad, aunque sea leve?",
-        "negativo": "Gracias por contarme, sé que no siempre es fácil hablar de esto. ¿Y emocionalmente cómo te has sentido? ¿Has experimentado mucha ansiedad, nervios, tristeza, dificultad para concentrarte, irritabilidad o ganas de dejar todo?",
+        "positivo": "Gracias por compartirlo. ¿Y a nivel emocional cómo te has sentido en general? ¿Has notado algo de ansiedad, dificultad para concentrarte o irritabilidad, aunque sea leve?",
+        "negativo": "Sé que hablar de esto no siempre es fácil, y te lo agradezco. ¿Y emocionalmente cómo estás? ¿Has sentido ansiedad intensa, tristeza, dificultad para concentrarte, muchos nervios o ganas de abandonar todo?",
         "neutral": "Gracias por contarme. ¿Y emocionalmente cómo te has sentido? ¿Has experimentado ansiedad, nervios, tristeza, dificultad para concentrarte o irritabilidad?"
     },
     4: {
         "dimension": "Comportamiento",
-        "positivo": "Comprendo. En cuanto a tu rutina diaria, ¿has notado cambios en tu comportamiento? Por ejemplo: desgano para ir a clase, cambios en tu alimentación o aislamiento social.",
-        "negativo": "Entiendo profundamente. Todo esto a veces nos hace cambiar nuestra rutina. ¿Has notado cambios en tu comportamiento? Por ejemplo: aislarte de los demás, desgano total para ir a clase, cambios drásticos en tu alimentación o conflictos con otras personas.",
-        "neutral": "Comprendo. ¿Has notado cambios en tu comportamiento? Por ejemplo: aislarte de los demás, desgano para ir a clase, cambios en tu alimentación, faltar a clases o conflictos con otras personas."
+        "positivo": "Entendido. ¿Has notado algún cambio en tu rutina o comportamiento diario? Por ejemplo: menos ganas de socializar, cambios en tu apetito o desgano para ir a clase.",
+        "negativo": "Gracias por tu honestidad. Cuando cargamos tanto peso emocional, es natural que nuestra rutina también cambie. ¿Has notado algo diferente en tu comportamiento? Por ejemplo: aislarte, cambios fuertes en tu apetito, conflictos con personas cercanas o desgano total para ir a clase.",
+        "neutral": "Gracias. ¿Has notado cambios en tu comportamiento o rutina diaria? Por ejemplo: aislarte de los demás, cambios en tu alimentación, desgano para ir a clase o conflictos con otras personas."
     },
     5: {
         "dimension": "Afrontamiento",
-        "positivo": "Última pregunta. Dado que te sientes relativamente bien, ¿qué estrategias usas normalmente para mantener el equilibrio y manejar el estrés? (ej. hacer ejercicio, organizar tu tiempo, salir con amigos, pasatiempos).",
-        "negativo": "Última pregunta. Cuando te sientes así de abrumado/a, ¿qué intentas hacer para manejarlo? Por ejemplo: hablar con alguien, organizar mejor tu tiempo, buscar ayuda profesional, rezar o escuchar música.",
-        "neutral": "Última pregunta. Cuando te sientes estresado/a, ¿qué haces para manejarlo? Por ejemplo: hablar con alguien, organizarte mejor, hacer ejercicio, buscar ayuda profesional, rezar o algún pasatiempo."
+        "positivo": "Ya casi terminamos. ¿Qué estrategias usas normalmente para mantener el equilibrio y manejar el estrés? (ej. hacer ejercicio, organizar tu tiempo, salir con amigos, algún pasatiempo).",
+        "negativo": "Ya casi terminamos, gracias por tu paciencia y confianza. Cuando te sientes así de agobiado/a, ¿qué sueles hacer para intentar manejarlo? Por ejemplo: hablar con alguien, escuchar música, buscar ayuda, rezar u organizar mejor tu tiempo.",
+        "neutral": "Ya casi terminamos. Cuando sientes que el estrés aumenta, ¿qué haces para manejarlo? Por ejemplo: hablar con alguien, hacer ejercicio, escuchar música, buscar ayuda profesional o algún pasatiempo."
     },
 }
 
@@ -219,62 +286,99 @@ RECOMENDACIONES = {
 
 def generar_insight_dinamico(texto, paso):
     t = str(texto).lower()
-    insight = ""
+    insights = []   # Lista en lugar de un solo insight (soporta múltiples síntomas)
     consejo = ""
-    
+
     # Detectar si el usuario está pidiendo ayuda explícitamente
     palabras_ayuda = ["recomend", "consejo", "que hago", "qué hago", "ayuda", "tip", "que me sugieres", "que puedo hacer", "qué puedo hacer"]
     pide_consejo = any(p in t for p in palabras_ayuda)
-    
-    # Dependiendo de la pregunta que acaba de responder (paso)
-    if paso == 0 or paso == 1: # Estresores o pregunta inicial
-        if "parciales" in t or "examen" in t or "evaluacion" in t:
-            insight = "Es completamente comprensible, los periodos de exámenes siempre traen una carga de presión muy alta. "
-            consejo = "Como sugerencia: dividir los temas por días y estudiar en bloques de 45 minutos ayuda mucho."
-        elif "tiempo" in t or "trabajos" in t or "muchas cosas" in t:
-            insight = "Se nota que estás lidiando con muchas responsabilidades a la vez, es normal sentirse abrumado. "
-            consejo = "Podría serte útil usar una agenda o hacer una lista de prioridades para tener más control."
-        elif "profesor" in t or "docente" in t or "entender" in t:
-            insight = "Es frustrante cuando la dinámica con las clases o docentes no es la mejor. "
+
+    # ── Paso 0 / 1: Estresores académicos ─────────────────────────
+    if paso == 0 or paso == 1:
+        if "tesis" in t or "sustentacion" in t or "sustentación" in t or "monografia" in t or "monografía" in t or "grado" in t or "trabajo de grado" in t:
+            insights.append("Preparar una tesis o sustentación es uno de los procesos académicos más demandantes que existen — implica esfuerzo intelectual, emocional y de tiempo al mismo tiempo.")
+            consejo = "Dividir el proceso en hitos semanales pequeños (hoy reviso esta sección, mañana esa otra) ayuda muchísimo a no sentir el peso de todo al mismo tiempo."
+        if "correcciones" in t or "corrección" in t or "correcciones" in t:
+            insights.append("Las correcciones y ajustes de un documento académico pueden sentirse interminables, especialmente cuando ya llevas mucho tiempo en el proceso.")
+            consejo = "Tómate unos minutos al empezar cada sesión para reconocer cuánto has avanzado — eso te dará más energía para continuar."
+        if "parciales" in t or "examen" in t or "evaluacion" in t or "evaluación" in t:
+            insights.append("Los periodos de exámenes siempre traen una carga de presión muy alta.")
+            consejo = "Dividir los temas por días y estudiar en bloques de 45 minutos ayuda mucho."
+        if "grupo" in t or "equipo" in t or "compañeros" in t or "exponer" in t or "exposicion" in t or "exposición" in t:
+            insights.append("Los trabajos en equipo o exposiciones requieren mucha coordinación interpersonal — es normal que generen un desgaste extra.")
+            consejo = "Establece roles y fechas de entrega claras desde la primera reunión del grupo."
+        if ("tiempo" in t or "trabajos" in t or "muchas cosas" in t or "muchos trabajos" in t or "muchas materias" in t) and not insights:
+            insights.append("Se nota que estás lidiando con muchas responsabilidades a la vez — es normal sentirse abrumado/a cuando todo llega junto.")
+            consejo = "Una lista de prioridades o una agenda sencilla puede darte más sensación de control."
+        if ("profesor" in t or "docente" in t or "entender" in t) and not insights:
+            insights.append("Es frustrante cuando la dinámica con las clases o los docentes no es la mejor.")
             consejo = "No dudes en pedir tutorías o apoyarte en tus compañeros de clase."
-            
-    elif paso == 2: # Acaban de responder sobre síntomas físicos
-        if "cansad" in t or "sueño" in t or "dormir" in t or "fatiga" in t or "agotad" in t:
-            insight = "Noto que mencionas cansancio. Es muy duro para el cuerpo mantener ese ritmo. "
-            consejo = "Recuerda que dormir bien (7-8 horas) es el pilar fundamental para recuperarte."
-        elif "cabeza" in t or "migraña" in t or "duele" in t:
-            insight = "Los dolores de cabeza son una señal clara de que tu cuerpo está acumulando mucha tensión. "
-            consejo = "Intenta hacer pausas activas cada hora, alejándote por completo de las pantallas."
-        elif "estomago" in t or "estómago" in t or "comer" in t or "apetito" in t or "digestion" in t:
-            insight = "El estrés muchas veces se refleja directamente en nuestro estómago, es una reacción muy natural. "
-            consejo = "Trata de no saltarte las comidas principales, incluso si sientes que no tienes mucho tiempo."
-            
-    elif paso == 3: # Acaban de responder sobre síntomas psicológicos
-        if "ansiedad" in t or "nervios" in t or "angustia" in t or "desesper" in t:
-            insight = "La ansiedad puede ser muy limitante y abrumadora, lamento que estés pasando por eso. "
-            consejo = "Hacer ejercicios de respiración profunda (inhalar 4 segundos, retener 4, exhalar 6) ayuda a calmar el sistema nervioso."
-        elif "triste" in t or "llorar" in t or "depre" in t or "desanim" in t or "mal" in t:
-            insight = "Es completamente válido sentirse triste bajo tanta presión académica, tus emociones son importantes. "
-            consejo = "A veces ayuda mucho escribir lo que sientes o desahogarte con alguien de absoluta confianza."
-        elif "concentrar" in t or "mente" in t or "blanco" in t:
-            insight = "Cuando hay saturación, es muy frustrante sentir que la mente no da más. "
-            consejo = "Si te pasa, cierra los libros 15 minutos, camina un poco y luego retoma. No fuerces tu cerebro."
-            
-    elif paso == 4: # Acaban de responder sobre comportamiento
-        if "aislad" in t or "sol" in t or "encerr" in t or "salir" in t or "hablar" in t:
-            insight = "Aislarse es un reflejo protector muy común cuando nos sentimos sobrepasados. "
-            consejo = "Intentar conversar aunque sea 10 minutos con un amigo puede aliviar mucho esa sensación."
-        elif "discut" in t or "pele" in t or "irritable" in t or "mal genio" in t:
-            insight = "Es normal que el estrés acumulado a veces salga en forma de irritabilidad con los demás. "
-            consejo = "Date espacios a solas para respirar hondo antes de reaccionar si sientes que vas a explotar."
-    
-    resultado = insight
+
+    # ── Paso 2: Síntomas físicos ───────────────────────────────────
+    elif paso == 2:
+        if "sueño" in t or "dormir" in t or "insomnio" in t or "desvelo" in t or "no duermo" in t:
+            insights.append("Los problemas para dormir afectan muchísimo el rendimiento y el estado de ánimo al día siguiente.")
+            consejo = "Intenta establecer una rutina relajante y desconectarte de pantallas al menos una hora antes de ir a la cama."
+        if "cansad" in t or "fatiga" in t or "agotad" in t or "sin energía" in t or "sin energia" in t:
+            insights.append("El cansancio constante es una señal de que tu cuerpo necesita descanso real, no solo dormir.")
+            if not consejo:
+                consejo = "Incluso 20 minutos de descanso sin pantalla durante el día pueden hacer una gran diferencia."
+        if "cabeza" in t or "migraña" in t or "migrana" in t or "cefalea" in t:
+            insights.append("Los dolores de cabeza son una señal clara de que tu cuerpo está acumulando mucha tensión.")
+            if not consejo:
+                consejo = "Intenta hacer pausas activas cada hora, alejándote por completo de las pantallas."
+        if "estomago" in t or "estómago" in t or "digestion" in t or "digestión" in t or "nausea" in t or "náusea" in t:
+            insights.append("El estrés muchas veces se manifiesta directamente en el estómago — es una reacción muy natural del cuerpo.")
+            if not consejo:
+                consejo = "Trata de no saltarte las comidas principales, incluso si sientes que no tienes mucho tiempo."
+
+    # ── Paso 3: Síntomas psicológicos ─────────────────────────────
+    elif paso == 3:
+        if "ansiedad" in t or "nervios" in t or "nerviosismo" in t or "angustia" in t or "desesper" in t:
+            insights.append("La ansiedad y los nervios pueden ser muy agotadores — lamento que estés pasando por eso.")
+            consejo = "Hacer respiraciones lentas (inhalar 4 segundos, retener 4, exhalar 6) ayuda a calmar el sistema nervioso en momentos de tensión."
+        if "triste" in t or "llorar" in t or "depre" in t or "desanim" in t:
+            insights.append("Es completamente válido sentirse triste bajo tanta presión — tus emociones son importantes y merecen atención.")
+            if not consejo:
+                consejo = "A veces ayuda escribir lo que sientes, o desahogarte con alguien de confianza."
+        if "concentrar" in t or "mente en blanco" in t or "concentracion" in t or "concentración" in t or "distrai" in t:
+            insights.append("Cuando hay tanta saturación mental, es muy frustrante sentir que la mente no responde.")
+            if not consejo:
+                consejo = "Si te pasa, cierra los libros 15 minutos, camina un poco y luego retoma. No fuerces tu cerebro."
+        if "dejar" in t or "abandonar" in t or "renunciar" in t or "ya no quiero" in t:
+            insights.append("Sentir ganas de dejarlo todo es más común de lo que crees cuando la carga es demasiada — no significa que seas débil.")
+            if not consejo:
+                consejo = "Hablar con alguien de confianza sobre cómo te sientes puede aliviarte mucho en esos momentos."
+
+    # ── Paso 4: Comportamiento ─────────────────────────────────────
+    elif paso == 4:
+        if "comer" in t or "apetito" in t or "alimentac" in t or "hambre" in t or "ganas de comer" in t or "no como" in t or "menos ganas" in t:
+            insights.append("El apetito es de las primeras cosas que el estrés altera — que notes eso habla de que tu cuerpo está dando señales importantes.")
+            consejo = "Aunque no tengas mucha hambre, intenta no saltarte las comidas principales para mantener tu energía."
+        if "aislad" in t or "encerrad" in t or "no salgo" in t or "no quiero ver" in t or "sin ganas de salir" in t:
+            insights.append("Aislarse es un reflejo protector muy común cuando nos sentimos sobrepasados/as.")
+            if not consejo:
+                consejo = "Intentar conversar aunque sea 10 minutos con un amigo puede aliviar mucho esa sensación."
+        if "discut" in t or "pele" in t or "irritable" in t or "mal genio" in t or "conflicto" in t:
+            insights.append("Es normal que el estrés acumulado a veces salga en forma de irritabilidad con las personas cercanas.")
+            if not consejo:
+                consejo = "Date espacios a solas para respirar hondo antes de reaccionar cuando sientes que vas a explotar."
+        if ("desgano" in t or "flojera" in t or "pereza" in t or "no quiero ir" in t or "faltar" in t) and not insights:
+            insights.append("El desgano para ir a clase o cumplir con las responsabilidades es una señal de agotamiento que vale la pena atender.")
+            if not consejo:
+                consejo = "A veces un pequeño descanso intencional (una tarde libre sin culpa) recarga mucho las pilas."
+
+    # ── Construir el texto final ───────────────────────────────────
+    if not insights:
+        return ""
+
+    texto_insights = " ".join(insights)
+    resultado = texto_insights
+
     if pide_consejo and consejo:
         resultado += f"<br><br>💡 <b>Consejo:</b> {consejo}"
-        
-    if resultado:
-        return f"<em>{resultado}</em><br><br>"
-    return ""
+
+    return f"<em>{resultado}</em><br><br>"
 
 def _scoring_reglas_likert(likert_values):
     """
@@ -453,27 +557,34 @@ def auth():
     if not usuario or not pin or len(pin) != 4 or not pin.isdigit():
         return jsonify({"error": "Usuario inválido o el PIN debe ser de 4 dígitos."}), 400
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Buscar si el usuario existe
-    cursor.execute("SELECT id, pin FROM usuarios WHERE nombre_usuario = ?", (usuario,))
-    user_row = cursor.fetchone()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
 
-    if user_row:
-        # El usuario existe, validar PIN
-        user_id, db_pin = user_row
-        if db_pin != pin:
-            conn.close()
-            return jsonify({"error": "PIN incorrecto para este usuario."}), 401
-    else:
-        # Registrar nuevo usuario
-        edad_val = int(edad) if edad.isdigit() else None
-        cursor.execute("INSERT INTO usuarios (nombre_usuario, pin, edad) VALUES (?, ?, ?)", (usuario, pin, edad_val))
-        user_id = cursor.lastrowid
-        conn.commit()
+        # Buscar si el usuario existe
+        cursor.execute(f"SELECT id, pin FROM usuarios WHERE nombre_usuario = {PH}", (usuario,))
+        user_row = cursor.fetchone()
 
-    conn.close()
+        if user_row:
+            # El usuario existe, validar PIN
+            user_id = user_row["id"] if USE_POSTGRES else user_row[0]
+            db_pin  = user_row["pin"] if USE_POSTGRES else user_row[1]
+            if db_pin != pin:
+                return jsonify({"error": "PIN incorrecto para este usuario."}), 401
+        else:
+            # Registrar nuevo usuario
+            edad_val = int(edad) if str(edad).isdigit() else None
+            if USE_POSTGRES:
+                cursor.execute(
+                    f"INSERT INTO usuarios (nombre_usuario, pin, edad) VALUES ({PH}, {PH}, {PH}) RETURNING id",
+                    (usuario, pin, edad_val)
+                )
+                user_id = cursor.fetchone()["id"]
+            else:
+                cursor.execute(
+                    f"INSERT INTO usuarios (nombre_usuario, pin, edad) VALUES ({PH}, {PH}, {PH})",
+                    (usuario, pin, edad_val)
+                )
+                user_id = cursor.lastrowid
 
     # Iniciar sesión web
     session["usuario_id"] = user_id
@@ -500,12 +611,12 @@ def index():
     session["ultimo_sentimiento"] = "neutral"
     
     # Crear registro en BD
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO sesiones (id, usuario_id, fecha_inicio, completado) VALUES (?, ?, ?, ?)', 
-                   (session_id, usuario_id, datetime.now(), False))
-    conn.commit()
-    conn.close()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            f'INSERT INTO sesiones (id, usuario_id, fecha_inicio, completado) VALUES ({PH}, {PH}, {PH}, {PH})',
+            (session_id, usuario_id, datetime.now(), False)
+        )
     
     return render_template("index.html", nombre_usuario=nombre)
 
@@ -529,12 +640,12 @@ def reiniciar():
     
     # Crear nueva sesión en BD
     if usuario_id:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute('INSERT INTO sesiones (id, usuario_id, fecha_inicio, completado) VALUES (?, ?, ?, ?)', 
-                       (session_id, usuario_id, datetime.now(), False))
-        conn.commit()
-        conn.close()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f'INSERT INTO sesiones (id, usuario_id, fecha_inicio, completado) VALUES ({PH}, {PH}, {PH}, {PH})',
+                (session_id, usuario_id, datetime.now(), False)
+            )
         
     return jsonify({"status": "ok"})
 
@@ -605,14 +716,12 @@ def predecir():
     # Guardar respuesta en la Base de Datos
     sesion_id = session.get("sesion_id")
     if sesion_id:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO respuestas (sesion_id, paso, texto, sentimiento)
-            VALUES (?, ?, ?, ?)
-        ''', (sesion_id, paso_actual, texto, sentimiento_actual))
-        conn.commit()
-        conn.close()
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f'INSERT INTO respuestas (sesion_id, paso, texto, sentimiento) VALUES ({PH}, {PH}, {PH}, {PH})',
+                (sesion_id, paso_actual, texto, sentimiento_actual)
+            )
 
     # Avanzar al siguiente paso
     paso_siguiente = paso_actual + 1
@@ -634,6 +743,28 @@ def predecir():
 
         # Insertar insight dinámico basado en lo que el usuario acaba de decir
         insight = generar_insight_dinamico(texto, paso_actual)
+
+        # Si hay insight, eliminar el conector redundante al inicio de la pregunta
+        # (ej: "Comprendo.", "Entiendo.", "Gracias por contarme.") para que la
+        # transición sea más fluida y no suene a dos voces distintas pegadas.
+        if insight:
+            conectores_redundantes = [
+                "entiendo,", "entiendo.", "entiendo ",
+                "comprendo,", "comprendo.", "comprendo ",
+                "gracias por contarme,", "gracias por contarme.",
+                "gracias por compartirlo,", "gracias por compartirlo.",
+                "gracias.", "gracias,",
+                "entendido.", "entendido,",
+                "sé que hablar de esto no siempre es fácil, y te lo agradezco.",
+            ]
+            pregunta_lower = pregunta.lower()
+            for conector in conectores_redundantes:
+                if pregunta_lower.startswith(conector):
+                    # Recortar el conector y capitalizar la primera letra restante
+                    pregunta = pregunta[len(conector):].lstrip()
+                    pregunta = pregunta[0].upper() + pregunta[1:] if pregunta else pregunta
+                    break
+
         pregunta = insight + pregunta
 
         return jsonify({

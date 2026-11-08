@@ -424,8 +424,8 @@ DIMENSION_KEYWORDS = {
     },
     "af_5_5": {
         "tema": "desahogarse y hablar",
-        "alto": ["hablo", "cuento", "desahogo", "comparto", "confío",
-                 "amigos", "familia", "converso", "apoyo",
+        "alto": ["hablo", "hablar", "cuento", "desahogo", "comparto", "confío",
+                 "amigos", "amigo", "amiga", "familia", "converso", "apoyo",
                  "le cuento a alguien", "hablo con mi mamá",
                  "hablo con mi papá", "hablo con mis amigos",
                  "me desahogo", "busco apoyo", "pido consejo",
