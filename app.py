@@ -21,6 +21,10 @@ from transformers import AutoTokenizer, AutoModel
 # ══════════════════════════════════════════════════════════════
 DATABASE_URL = os.environ.get("DATABASE_URL")  # Supabase/PostgreSQL en producción
 
+# Rutas de base de datos local SQLite (siempre preparadas como respaldo)
+BASE_DIR_DB = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR_DB, "sisco_chatbot_v2.db")
+
 USE_POSTGRES = False
 PSYCOPG_VERSION = None
 PH = "?"
@@ -32,7 +36,7 @@ if DATABASE_URL:
         USE_POSTGRES = True
         PSYCOPG_VERSION = 3
         PH = "%s"
-        print("[SISCO] Modo PRODUCCIÓN: conectado a PostgreSQL (psycopg v3)")
+        print("[SISCO] Modo PRODUCCIÓN: detectado psycopg v3")
     except Exception:
         try:
             import psycopg2
@@ -40,47 +44,50 @@ if DATABASE_URL:
             USE_POSTGRES = True
             PSYCOPG_VERSION = 2
             PH = "%s"
-            print("[SISCO] Modo PRODUCCIÓN: conectado a PostgreSQL (psycopg2)")
+            print("[SISCO] Modo PRODUCCIÓN: detectado psycopg2")
         except Exception as err:
             print(f"[SISCO ALERTA] No se pudo cargar driver PostgreSQL ({err}). Usando SQLite de respaldo.")
             USE_POSTGRES = False
             PH = "?"
-            BASE_DIR_DB = os.path.dirname(os.path.abspath(__file__))
-            DB_PATH = os.path.join(BASE_DIR_DB, "sisco_chatbot_v2.db")
 
 if not USE_POSTGRES:
-    BASE_DIR_DB = os.path.dirname(os.path.abspath(__file__))
-    DB_PATH = os.path.join(BASE_DIR_DB, "sisco_chatbot_v2.db")
     print("[SISCO] Modo LOCAL: usando SQLite")
 
 
 @contextlib.contextmanager
 def get_db_connection():
-    """Context manager que devuelve una conexión según el entorno activo."""
+    """Context manager que devuelve una conexión según el entorno activo con fallback automático a SQLite."""
+    global USE_POSTGRES, PH
     if USE_POSTGRES:
-        if PSYCOPG_VERSION == 3:
-            conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
-        else:
-            conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
         try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-    else:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
+            if PSYCOPG_VERSION == 3:
+                conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+            else:
+                conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+            try:
+                yield conn
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+            return
+        except Exception as e:
+            print(f"[SISCO ALERTA] Conexión fallida a PostgreSQL: {e}. Activando respaldo SQLite...")
+            USE_POSTGRES = False
+            PH = "?"
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def init_db():
