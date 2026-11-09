@@ -611,12 +611,15 @@ def index():
     session["ultimo_sentimiento"] = "neutral"
     
     # Crear registro en BD
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            f'INSERT INTO sesiones (id, usuario_id, fecha_inicio, completado) VALUES ({PH}, {PH}, {PH}, {PH})',
-            (session_id, usuario_id, datetime.now(), False)
-        )
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f'INSERT INTO sesiones (id, usuario_id, fecha_inicio, completado) VALUES ({PH}, {PH}, {PH}, {PH})',
+                (session_id, usuario_id, datetime.now(), False)
+            )
+    except Exception as err_db:
+        print(f"[SISCO ALERTA DB] No se pudo crear sesion en BD: {err_db}")
     
     return render_template("index.html", nombre_usuario=nombre)
 
@@ -716,12 +719,15 @@ def predecir():
     # Guardar respuesta en la Base de Datos
     sesion_id = session.get("sesion_id")
     if sesion_id:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                f'INSERT INTO respuestas (sesion_id, paso, texto, sentimiento) VALUES ({PH}, {PH}, {PH}, {PH})',
-                (sesion_id, paso_actual, texto, sentimiento_actual)
-            )
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f'INSERT INTO respuestas (sesion_id, paso, texto, sentimiento) VALUES ({PH}, {PH}, {PH}, {PH})',
+                    (sesion_id, paso_actual, texto, sentimiento_actual)
+                )
+        except Exception as err_db:
+            print(f"[SISCO ALERTA DB] No se pudo guardar respuesta en BD: {err_db}")
 
     # Avanzar al siguiente paso
     paso_siguiente = paso_actual + 1
@@ -793,15 +799,16 @@ def predecir():
         # Actualizar la base de datos con el resultado final
         sesion_id = session.get("sesion_id")
         if sesion_id:
-            conn = sqlite3.connect(DB_PATH)
-            cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE sesiones 
-                SET nivel_final = ?, confianza = ?, completado = ?
-                WHERE id = ?
-            ''', (nivel, confianza, True, sesion_id))
-            conn.commit()
-            conn.close()
+            try:
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(f'''
+                        UPDATE sesiones 
+                        SET nivel_final = {PH}, confianza = {PH}, completado = {PH}
+                        WHERE id = {PH}
+                    ''', (nivel, confianza, True, sesion_id))
+            except Exception as err_db:
+                print(f"[SISCO ALERTA DB] No se pudo actualizar sesion final: {err_db}")
 
         # Reiniciar variables de paso (mantener sesion_id)
         session["paso"] = 0
