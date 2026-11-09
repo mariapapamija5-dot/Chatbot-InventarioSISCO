@@ -84,7 +84,9 @@ def get_db_connection():
 
 
 def init_db():
-    """Crea las tablas si no existen. Compatible con SQLite y PostgreSQL."""
+    """Crea las tablas si no existen. Compatible con SQLite y PostgreSQL con fallback automático."""
+    global USE_POSTGRES, PH
+    
     if USE_POSTGRES:
         sql_usuarios = """
             CREATE TABLE IF NOT EXISTS usuarios (
@@ -110,39 +112,57 @@ def init_db():
                 texto TEXT,
                 sentimiento TEXT
             )"""
-    else:
-        sql_usuarios = """
-            CREATE TABLE IF NOT EXISTS usuarios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre_usuario TEXT UNIQUE,
-                pin TEXT,
-                edad INTEGER
-            )"""
-        sql_sesiones = """
-            CREATE TABLE IF NOT EXISTS sesiones (
-                id TEXT PRIMARY KEY,
-                usuario_id INTEGER,
-                fecha_inicio TIMESTAMP,
-                nivel_final TEXT,
-                confianza REAL,
-                completado BOOLEAN,
-                FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
-            )"""
-        sql_respuestas = """
-            CREATE TABLE IF NOT EXISTS respuestas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sesion_id TEXT,
-                paso INTEGER,
-                texto TEXT,
-                sentimiento TEXT,
-                FOREIGN KEY(sesion_id) REFERENCES sesiones(id)
-            )"""
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(sql_usuarios)
+                cursor.execute(sql_sesiones)
+                cursor.execute(sql_respuestas)
+            print("[SISCO] ✅ Base de datos PostgreSQL inicializada con éxito.")
+            return
+        except Exception as e:
+            print(f"[SISCO ALERTA] Error conectando a PostgreSQL ({e}).")
+            print("[SISCO ALERTA] Cambiando automáticamente a SQLite local para no detener el servicio.")
+            USE_POSTGRES = False
+            PH = "?"
 
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(sql_usuarios)
-        cursor.execute(sql_sesiones)
-        cursor.execute(sql_respuestas)
+    # Modo SQLite (por defecto o fallback)
+    sql_usuarios_sqlite = """
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre_usuario TEXT UNIQUE,
+            pin TEXT,
+            edad INTEGER
+        )"""
+    sql_sesiones_sqlite = """
+        CREATE TABLE IF NOT EXISTS sesiones (
+            id TEXT PRIMARY KEY,
+            usuario_id INTEGER,
+            fecha_inicio TIMESTAMP,
+            nivel_final TEXT,
+            confianza REAL,
+            completado BOOLEAN,
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+        )"""
+    sql_respuestas_sqlite = """
+        CREATE TABLE IF NOT EXISTS respuestas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sesion_id TEXT,
+            paso INTEGER,
+            texto TEXT,
+            sentimiento TEXT,
+            FOREIGN KEY(sesion_id) REFERENCES sesiones(id)
+        )"""
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql_usuarios_sqlite)
+            cursor.execute(sql_sesiones_sqlite)
+            cursor.execute(sql_respuestas_sqlite)
+        print("[SISCO] ✅ Base de datos SQLite lista.")
+    except Exception as e:
+        print(f"[SISCO ALERTA] Error en SQLite: {e}")
 
 # Inicializar DB al arrancar
 init_db()
