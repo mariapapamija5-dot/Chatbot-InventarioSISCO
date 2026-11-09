@@ -71,6 +71,28 @@
                 </div>
             </div>
 
+            <!-- Cuadro de Consentimiento Informado y Anonimato -->
+            <div class="bg-blue-50/70 border border-blue-200 rounded-xl p-4 text-xs text-gray-600 space-y-2">
+                <div class="flex items-center space-x-2 text-blue-800 font-semibold">
+                    <i class="fas fa-shield-alt text-sm"></i>
+                    <span>Consentimiento Informado y Anonimato</span>
+                </div>
+                <p>
+                    Esta herramienta es un prototipo orientativo de bienestar universitario de la <b>FUP</b> basado en el inventario SISCO.
+                </p>
+                <ul class="list-disc list-inside space-y-1 text-gray-500">
+                    <li><b>100% Anónimo:</b> No se registran nombres reales, correos ni datos de contacto.</li>
+                    <li><b>Confidencialidad:</b> La información se procesa de forma agregada para fines estrictamente investigativos.</li>
+                    <li><b>Protección legal:</b> Cumplimiento de la <b>Ley 1581 de 2012</b> de Protección de Datos Personales (Colombia).</li>
+                </ul>
+                <div class="flex items-start space-x-2 pt-2 border-t border-blue-100">
+                    <input type="checkbox" id="acepto_consentimiento" required class="mt-0.5 rounded text-blue-600 focus:ring-blue-500">
+                    <label for="acepto_consentimiento" class="text-gray-700 font-medium cursor-pointer">
+                        Acepto participar voluntariamente en esta evaluación académica.
+                    </label>
+                </div>
+            </div>
+
             <div id="error-msg" class="hidden bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center">
                 <!-- Errores aparecerán aquí -->
             </div>
@@ -84,7 +106,7 @@
         
         <div class="mt-6 text-center">
             <p class="text-xs text-gray-400">
-                Tus datos son completamente confidenciales y se usan exclusivamente para la validación del inventario SISCO.
+                Fundación Universitaria de Popayán · Ingeniería de Sistemas · 2026
             </p>
         </div>
     </div>
