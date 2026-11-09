@@ -21,16 +21,34 @@ from transformers import AutoTokenizer, AutoModel
 # ══════════════════════════════════════════════════════════════
 DATABASE_URL = os.environ.get("DATABASE_URL")  # Supabase/PostgreSQL en producción
 
+USE_POSTGRES = False
+PSYCOPG_VERSION = None
+PH = "?"
+
 if DATABASE_URL:
-    import psycopg2
-    import psycopg2.extras
-    USE_POSTGRES = True
-    PH = "%s"   # Placeholder de PostgreSQL
-    print("[SISCO] Modo PRODUCCIÓN: conectado a PostgreSQL")
-else:
-    import sqlite3
-    USE_POSTGRES = False
-    PH = "?"    # Placeholder de SQLite
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+        USE_POSTGRES = True
+        PSYCOPG_VERSION = 3
+        PH = "%s"
+        print("[SISCO] Modo PRODUCCIÓN: conectado a PostgreSQL (psycopg v3)")
+    except Exception:
+        try:
+            import psycopg2
+            import psycopg2.extras
+            USE_POSTGRES = True
+            PSYCOPG_VERSION = 2
+            PH = "%s"
+            print("[SISCO] Modo PRODUCCIÓN: conectado a PostgreSQL (psycopg2)")
+        except Exception as err:
+            print(f"[SISCO ALERTA] No se pudo cargar driver PostgreSQL ({err}). Usando SQLite de respaldo.")
+            USE_POSTGRES = False
+            PH = "?"
+            BASE_DIR_DB = os.path.dirname(os.path.abspath(__file__))
+            DB_PATH = os.path.join(BASE_DIR_DB, "sisco_chatbot_v2.db")
+
+if not USE_POSTGRES:
     BASE_DIR_DB = os.path.dirname(os.path.abspath(__file__))
     DB_PATH = os.path.join(BASE_DIR_DB, "sisco_chatbot_v2.db")
     print("[SISCO] Modo LOCAL: usando SQLite")
@@ -40,7 +58,10 @@ else:
 def get_db_connection():
     """Context manager que devuelve una conexión según el entorno activo."""
     if USE_POSTGRES:
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+        if PSYCOPG_VERSION == 3:
+            conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+        else:
+            conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
         try:
             yield conn
             conn.commit()
